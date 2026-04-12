@@ -1,0 +1,15 @@
+# 環境変数・秘密情報
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# その他
+.DS_Store
+*.log
