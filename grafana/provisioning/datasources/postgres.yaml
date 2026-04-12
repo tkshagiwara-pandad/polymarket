@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: ArbBot-SQLite
+    type: frser-sqlite-datasource
+    access: proxy
+    url: /home/user/polymarket/data/trades.db
+    isDefault: true
+
+  - name: ArbBot-PostgreSQL
+    type: postgres
+    url: localhost:5432
+    database: huginn_development
+    user: huginn
+    secureJsonData:
+      password: huginn
+    jsonData:
+      sslmode: disable

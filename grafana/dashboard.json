@@ -1,0 +1,44 @@
+{
+  "title": "Polymarket/Kalshi Arb Bot",
+  "uid": "arb-bot-001",
+  "panels": [
+    {
+      "title": "残高推移",
+      "type": "timeseries",
+      "targets": [{
+        "rawSql": "SELECT timestamp, balance FROM portfolio ORDER BY id",
+        "format": "time_series"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "title": "ドローダウン (%)",
+      "type": "timeseries",
+      "targets": [{
+        "rawSql": "SELECT timestamp, drawdown*100 as drawdown_pct FROM portfolio ORDER BY id",
+        "format": "time_series"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "title": "アービトラージ機会 (エッジ別)",
+      "type": "barchart",
+      "targets": [{
+        "rawSql": "SELECT topic, AVG(edge)*100 as avg_edge_pct, COUNT(*) as count FROM arb_opportunities GROUP BY topic ORDER BY avg_edge_pct DESC LIMIT 20",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+    },
+    {
+      "title": "取引履歴",
+      "type": "table",
+      "targets": [{
+        "rawSql": "SELECT timestamp, venue, side, price, size, fee, CASE WHEN paper=1 THEN 'PAPER' ELSE 'LIVE' END as mode FROM trades ORDER BY id DESC LIMIT 50",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+    }
+  ],
+  "time": {"from": "now-24h", "to": "now"},
+  "refresh": "30s"
+}
