@@ -1,0 +1,27 @@
+# Polymarket / Kalshi アービトラージボット
+# インストール: pip install -r requirements.txt
+
+# 取引所クライアント
+py-clob-client>=0.28.0          # Polymarket CLOB API
+# kalshi-python>=1.0.0          # Kalshi API（要別途インストール）
+
+# AIエージェントフレームワーク
+langgraph>=1.1.0
+langchain-core>=0.1.0
+crewai>=1.0.0
+
+# 非同期・HTTP
+aiohttp>=3.8.0
+
+# データ処理
+python-dotenv>=1.0.0
+
+# ロギング
+loguru>=0.7.0
+
+# 通知
+python-telegram-bot>=20.0
+
+# 開発・テスト
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

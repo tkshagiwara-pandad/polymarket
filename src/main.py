@@ -1,0 +1,149 @@
+"""
+Polymarket / Kalshi アービトラージボット
+メインエントリーポイント
+
+使い方:
+  python -m src.main                   # ペーパートレード（デフォルト）
+  PAPER_TRADING=false python -m src.main  # ライブトレード（要認証情報）
+"""
+import asyncio
+import signal
+import sys
+from loguru import logger
+
+from src.config import config
+from src.utils.logger import setup_logger
+from src.utils.database import Database
+from src.utils.notifier import Notifier
+from src.risk.manager import RiskManager
+from src.connectors.polymarket import PolymarketConnector
+from src.connectors.kalshi import KalshiConnector
+from src.workflow.graph import build_arb_graph
+
+
+# ─── 監視対象マーケットペア（topic, polymarket_id, kalshi_ticker）───────
+# 同一テーマを両取引所のマーケットIDで紐付ける
+MARKET_PAIRS = [
+    # (polymarket_id, kalshi_ticker, topic)
+    # 実際のIDはAPIで取得・設定すること
+    ("example-poly-market-id-1", "EXAMPLE-KALSHI-1", "2024年大統領選"),
+    ("example-poly-market-id-2", "EXAMPLE-KALSHI-2", "Fed利上げ"),
+]
+
+# ─── 初期ポートフォリオ残高 ────────────────────────────────────────
+INITIAL_BALANCE_USD = 1000.0
+
+
+async def run_bot() -> None:
+    """ボットのメインループ"""
+    setup_logger(config.log_level)
+
+    mode = "📝 PAPER TRADING" if config.paper_trading else "🔴 LIVE TRADING"
+    logger.info(f"{'='*50}")
+    logger.info(f"  Polymarket / Kalshi アービトラージボット起動")
+    logger.info(f"  モード: {mode}")
+    logger.info(f"  初期残高: ${INITIAL_BALANCE_USD:.2f}")
+    logger.info(f"  最大DD: {config.risk.max_drawdown_pct*100:.0f}%")
+    logger.info(f"  最大ポジション: {config.risk.max_position_pct*100:.0f}%")
+    logger.info(f"{'='*50}")
+
+    # コンポーネント初期化
+    db = Database(config.db_path)
+    notifier = Notifier(
+        bot_token=config.telegram.bot_token,
+        chat_id=config.telegram.chat_id,
+        enabled=config.telegram.enabled,
+    )
+    risk_manager = RiskManager(config.risk, INITIAL_BALANCE_USD)
+    poly = PolymarketConnector(
+        private_key=config.polymarket.private_key,
+        api_key=config.polymarket.api_key,
+        api_secret=config.polymarket.api_secret,
+        api_passphrase=config.polymarket.api_passphrase,
+        paper=config.paper_trading,
+    )
+    kalshi = KalshiConnector(
+        api_key_id=config.kalshi.api_key_id,
+        private_key_path=config.kalshi.private_key_path,
+        paper=config.paper_trading,
+    )
+
+    # LangGraphワークフロー構築
+    arb_graph = build_arb_graph(
+        risk_manager=risk_manager,
+        db=db,
+        notifier=notifier,
+        config=config,
+        poly_connector=poly,
+        kalshi_connector=kalshi,
+        market_pairs=MARKET_PAIRS,
+    )
+
+    # グレースフルシャットダウン
+    shutdown_event = asyncio.Event()
+
+    def _signal_handler():
+        logger.info("シャットダウン信号を受信しました")
+        shutdown_event.set()
+
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, _signal_handler)
+
+    logger.info(f"監視開始（{config.poll_interval_sec}秒間隔）")
+
+    cycle = 0
+    while not shutdown_event.is_set():
+        cycle += 1
+        try:
+            logger.info(f"─── サイクル #{cycle} ───")
+
+            initial_state = {
+                "timestamp": "",
+                "opportunities": [],
+                "selected_opp": None,
+                "risk_approved": False,
+                "trade_result": None,
+                "kill_switch": False,
+                "error": None,
+            }
+            result = await arb_graph.ainvoke(initial_state)
+
+            # キルスイッチ発動で終了
+            if result.get("kill_switch"):
+                logger.critical("キルスイッチによりボット停止")
+                break
+
+        except Exception as e:
+            logger.exception(f"サイクルエラー: {e}")
+            await notifier.alert_error(str(e))
+
+        # 次のサイクルまで待機
+        try:
+            await asyncio.wait_for(
+                shutdown_event.wait(),
+                timeout=config.poll_interval_sec
+            )
+        except asyncio.TimeoutError:
+            pass
+
+    # 終了サマリー
+    summary = risk_manager.summary()
+    logger.info(f"ボット終了サマリー: {summary}")
+    await notifier.daily_summary(
+        trades=summary["total_trades"],
+        pnl=summary["total_pnl"],
+        balance=summary["balance"],
+    )
+
+
+def main():
+    try:
+        asyncio.run(run_bot())
+    except KeyboardInterrupt:
+        logger.info("ボットを停止しました")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
