@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# MCP設定（APIキーを含むため）
+.mcp.json
+
 # Python
 __pycache__/
 *.pyc
