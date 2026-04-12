@@ -19,8 +19,8 @@ python-dotenv>=1.0.0
 # ロギング
 loguru>=0.7.0
 
-# 通知
-python-telegram-bot>=20.0
+# 通知（100+サービス対応）
+apprise>=1.9.0
 
 # 開発・テスト
 pytest>=7.0.0
