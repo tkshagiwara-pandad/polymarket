@@ -13,6 +13,10 @@ __pycache__/
 .venv/
 venv/
 
+# データ・ログ（実行時生成）
+data/*.db
+logs/*.log
+
 # その他
 .DS_Store
 *.log
