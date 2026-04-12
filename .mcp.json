@@ -13,6 +13,13 @@
         "OPENAI_API_KEY": "${OPENAI_API_KEY}",
         "TAVILY_API_KEY": "${TAVILY_API_KEY}"
       }
+    },
+    "firecrawl": {
+      "command": "/opt/node22/bin/npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": "your_firecrawl_api_key_here"
+      }
     }
   }
 }
