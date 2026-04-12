@@ -43,11 +43,12 @@ class KalshiConfig:
 
 
 @dataclass
-class TelegramConfig:
-    """Telegram通知設定"""
-    bot_token: str = field(default_factory=lambda: os.getenv("TELEGRAM_BOT_TOKEN", ""))
-    chat_id: str = field(default_factory=lambda: os.getenv("TELEGRAM_CHAT_ID", ""))
-    enabled: bool = field(default_factory=lambda: bool(os.getenv("TELEGRAM_BOT_TOKEN")))
+class NotifyConfig:
+    """通知設定（Apprise）"""
+    # カンマ区切りで複数サービスを指定可能
+    # 例: tgram://TOKEN/CHAT_ID,slack://TOKEN/CHANNEL,discord://ID/TOKEN
+    apprise_urls: str = field(default_factory=lambda: os.getenv("APPRISE_URLS", ""))
+    enabled: bool = field(default_factory=lambda: bool(os.getenv("APPRISE_URLS")))
 
 
 @dataclass
@@ -63,7 +64,7 @@ class AppConfig:
     risk: RiskConfig = field(default_factory=RiskConfig)
     polymarket: PolymarketConfig = field(default_factory=PolymarketConfig)
     kalshi: KalshiConfig = field(default_factory=KalshiConfig)
-    telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    notify: NotifyConfig = field(default_factory=NotifyConfig)
 
 
 # シングルトンインスタンス

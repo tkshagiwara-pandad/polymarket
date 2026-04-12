@@ -50,9 +50,8 @@ async def run_bot() -> None:
     # コンポーネント初期化
     db = Database(config.db_path)
     notifier = Notifier(
-        bot_token=config.telegram.bot_token,
-        chat_id=config.telegram.chat_id,
-        enabled=config.telegram.enabled,
+        apprise_urls=config.notify.apprise_urls,
+        enabled=config.notify.enabled,
     )
     risk_manager = RiskManager(config.risk, INITIAL_BALANCE_USD)
     poly = PolymarketConnector(
