@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "polymarket": {
+      "command": "/home/user/polymarket-mcp-server/venv/bin/polymarket-mcp",
+      "env": {
+        "DOTENV_PATH": "/home/user/polymarket-mcp-server/.env"
+      }
+    }
+  }
+}
