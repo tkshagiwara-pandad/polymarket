@@ -33,6 +33,13 @@ class PolymarketConnector:
         self.paper = paper
         self._client: Optional[object] = None
 
+        if not CLOB_AVAILABLE:
+            logger.error("py-clob-client 未インストール: pip install py-clob-client")
+        elif not private_key:
+            logger.error("POLYGON_PRIVATE_KEY が .env に設定されていません")
+        elif paper:
+            logger.info("Polymarketコネクタ: ペーパートレードモード")
+
         if CLOB_AVAILABLE and private_key and not paper:
             try:
                 self._client = ClobClient(
@@ -48,9 +55,6 @@ class PolymarketConnector:
                 logger.info("Polymarket CLOBクライアント初期化完了（ライブモード）")
             except Exception as e:
                 logger.error(f"Polymarket初期化失敗: {e}")
-        else:
-            mode = "ペーパートレード" if paper else "認証情報なし"
-            logger.info(f"Polymarketコネクタ: {mode}モード")
 
     async def get_market_price(self, market_id: str, topic: str = "") -> Optional[MarketPrice]:
         """市場の最良気配値を取得する"""

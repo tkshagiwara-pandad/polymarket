@@ -13,6 +13,9 @@ langchain-core>=0.1.0
 # 非同期・HTTP
 aiohttp>=3.8.0
 
+# Kalshi RSA認証
+cryptography>=42.0.0
+
 # データ処理
 python-dotenv>=1.0.0
 
