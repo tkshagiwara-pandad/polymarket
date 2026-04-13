@@ -145,12 +145,18 @@ def match_markets(
     pairs = []
     # 流動性フィルター
     poly_filtered = [m for m in poly_markets if m.volume >= min_volume]
-    kalshi_filtered = [m for m in kalshi_markets if m.volume >= min_volume]
+    kalshi_filtered = list(m for m in kalshi_markets if m.volume >= min_volume)
 
-    for pm in poly_filtered:
+    # 1対1マッチング：各Kalshiマーケットは1回のみ使用
+    used_kalshi: set[str] = set()
+
+    # Polymarketを流動性順にソートして高流動性を優先
+    for pm in sorted(poly_filtered, key=lambda m: m.volume, reverse=True):
         best_score = 0.0
         best_km = None
         for km in kalshi_filtered:
+            if km.market_id in used_kalshi:
+                continue
             score = jaccard_similarity(pm.title, km.title)
             if score > best_score:
                 best_score = score
@@ -159,6 +165,7 @@ def match_markets(
         if best_score >= threshold and best_km:
             topic = pm.title[:60]
             pairs.append((pm.market_id, best_km.market_id, topic))
+            used_kalshi.add(best_km.market_id)
             logger.info(
                 f"マッチング: [{best_score:.2f}] "
                 f"POLY: {pm.title[:40]} ↔ KALSHI: {best_km.title[:40]}"

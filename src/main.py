@@ -24,11 +24,7 @@ from src.workflow.graph import build_arb_graph
 
 # ─── 静的マーケットペア（手動設定・フォールバック用）───────────────
 # 動的発見が失敗した場合に使用
-FALLBACK_MARKET_PAIRS = [
-    # (polymarket_id, kalshi_ticker, topic)
-    ("example-poly-market-id-1", "EXAMPLE-KALSHI-1", "2024年大統領選"),
-    ("example-poly-market-id-2", "EXAMPLE-KALSHI-2", "Fed利上げ"),
-]
+FALLBACK_MARKET_PAIRS: list = []  # ダミーペアを削除。実マーケットが見つかるまで待機
 
 # ─── 初期ポートフォリオ残高 ────────────────────────────────────────
 INITIAL_BALANCE_USD = 1000.0
@@ -74,9 +70,9 @@ async def run_bot() -> None:
     logger.info("マーケットペアを自動発見中...")
     market_pairs = await discover_market_pairs()
     if not market_pairs:
-        logger.warning("自動発見失敗 → フォールバックペアを使用")
+        logger.warning("マッチングペアなし。次の再発見まで待機します")
         market_pairs = FALLBACK_MARKET_PAIRS
-    logger.info(f"{len(market_pairs)}ペアで監視開始")
+    logger.info(f"{len(market_pairs)}ペアで監視開始（0件の場合はサイクルをスキップ）")
 
     # LangGraphワークフロー構築
     arb_graph = build_arb_graph(
