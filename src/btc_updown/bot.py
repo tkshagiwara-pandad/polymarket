@@ -96,6 +96,7 @@ async def _check_trade_result(
 async def _daily_summary_loop(
     db: TradeDB,
     notifier: Notifier,
+    review_date: str | None = None,
 ) -> None:
     """毎日 09:00 JST（00:00 UTC）に日次サマリーをTelegramへ送信"""
     while True:
@@ -129,6 +130,22 @@ async def _daily_summary_loop(
             ),
         )
 
+        # 振り返り通知（REVIEW_DATE と一致した日）
+        if review_date and s["date"] == review_date:
+            win_rate_total = f"{total['win_rate']:.1%}" if total["total"] > 0 else "-"
+            await notifier.send(
+                title="📅 戦略振り返りタイミング！",
+                message=(
+                    f"設定した振り返り日（{review_date}）です。\n"
+                    f"─────────────\n"
+                    f"累計: {total['total']}戦 {total['wins']}勝\n"
+                    f"勝率: {win_rate_total}\n"
+                    f"累計PnL: {total['pnl']:+.2f}$\n"
+                    f"─────────────\n"
+                    f"パラメータの見直しを検討してください"
+                ),
+            )
+
 
 async def run_btc_updown(
     config: AppConfig,
@@ -143,6 +160,7 @@ async def run_btc_updown(
     use_kelly: bool = False,
     kelly_fraction: float = 0.25,
     kelly_min_size: float = 2.0,
+    review_date: str | None = None,
 ) -> None:
     """BTC 5分 Up/Down ボットのメインループ（WebSocket版）"""
 
@@ -150,12 +168,14 @@ async def run_btc_updown(
     logger.info(f"  サイズ: ${trade_size_usd} | エッジ閾値: {min_edge:.0%} | 変化率閾値: {min_change_pct:.2f}%")
     logger.info(f"  モード: {'📝 PAPER' if config.paper_trading else '🔴 LIVE'}")
     logger.info(f"  Kelly: {'有効' if use_kelly else '無効（固定サイズ）'} | 日次損失上限: ${daily_loss_limit}")
+    if review_date:
+        logger.info(f"  振り返り日: {review_date}")
 
     # DB・WebSocket・日次サマリーを初期化
     db = TradeDB()
     feed = BinancePriceFeed()
     feed_task = asyncio.create_task(feed.start())
-    summary_task = asyncio.create_task(_daily_summary_loop(db, notifier))
+    summary_task = asyncio.create_task(_daily_summary_loop(db, notifier, review_date))
     logger.info("Binance WebSocket 接続中...")
 
     # 初回データが届くまで少し待つ

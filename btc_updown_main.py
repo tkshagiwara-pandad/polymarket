@@ -27,6 +27,7 @@ DAILY_LOSS_LIMIT    = float(os.getenv("DAILY_LOSS_LIMIT", "15.0"))
 USE_KELLY           = os.getenv("USE_KELLY", "false").lower() == "true"
 KELLY_FRACTION      = float(os.getenv("KELLY_FRACTION", "0.25"))
 KELLY_MIN_SIZE      = float(os.getenv("KELLY_MIN_SIZE", "2.0"))
+REVIEW_DATE         = os.getenv("REVIEW_DATE", "")  # 例: "2026-04-28"
 
 
 async def main():
@@ -73,6 +74,7 @@ async def main():
             use_kelly=USE_KELLY,
             kelly_fraction=KELLY_FRACTION,
             kelly_min_size=KELLY_MIN_SIZE,
+            review_date=REVIEW_DATE or None,
         )
     )
 
