@@ -15,6 +15,7 @@ from src.btc_updown.strategy import analyze
 from src.btc_updown.price_feed import BinancePriceFeed
 from src.config import AppConfig
 from src.risk.manager import RiskManager
+from src.utils.notifier import Notifier
 
 
 async def _wait_for_window_open() -> None:
@@ -31,6 +32,7 @@ async def run_btc_updown(
     config: AppConfig,
     risk_manager: RiskManager,
     poly_connector,
+    notifier: Notifier,
     trade_size_usd: float = 10.0,
     min_edge: float = 0.04,
     min_change_pct: float = 0.15,
@@ -130,6 +132,17 @@ async def run_btc_updown(
                 logger.info(
                     f"✅ 発注完了: {signal.direction.upper()} ${trade_size_usd} @ {price:.3f} "
                     f"総遅延={total_ms:.0f}ms"
+                )
+                await notifier.send(
+                    title="BTC約定",
+                    message=(
+                        f"{'📈 UP' if signal.direction == 'up' else '📉 DOWN'} "
+                        f"${trade_size_usd} @ {price:.3f}\n"
+                        f"BTC: ${signal.btc_ref:,.0f} → ${signal.btc_now:,.0f} "
+                        f"({signal.change_pct:+.2f}%)\n"
+                        f"edge={signal.edge:+.3f} 遅延={total_ms:.0f}ms\n"
+                        f"{'📝 PAPER' if config.paper_trading else '🔴 LIVE'}"
+                    ),
                 )
             else:
                 logger.error(f"❌ 発注失敗 ({total_ms:.0f}ms)")

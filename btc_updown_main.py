@@ -16,6 +16,7 @@ from src.config import config
 from src.utils.logger import setup_logger
 from src.risk.manager import RiskManager
 from src.connectors.polymarket import PolymarketConnector
+from src.utils.notifier import Notifier
 from src.btc_updown.bot import run_btc_updown
 
 INITIAL_BALANCE_USD = float(os.getenv("INITIAL_BALANCE", "1000.0"))
@@ -36,6 +37,10 @@ async def main():
     logger.info("=" * 50)
 
     risk_manager = RiskManager(config.risk, INITIAL_BALANCE_USD)
+    notifier = Notifier(
+        apprise_urls=config.notify.apprise_urls,
+        enabled=config.notify.enabled,
+    )
     poly = PolymarketConnector(
         private_key=config.polymarket.private_key,
         api_key=config.polymarket.api_key,
@@ -54,6 +59,7 @@ async def main():
             config=config,
             risk_manager=risk_manager,
             poly_connector=poly,
+            notifier=notifier,
             trade_size_usd=TRADE_SIZE_USD,
             min_edge=MIN_EDGE,
             min_change_pct=MIN_CHANGE_PCT,
