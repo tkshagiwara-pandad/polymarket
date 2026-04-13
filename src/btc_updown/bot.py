@@ -89,7 +89,15 @@ async def run_btc_updown(
                 f"({(t_market - t0)*1000:.0f}ms)"
             )
 
-            # ② BTC価格はWebSocketキャッシュから即取得（遅延ゼロ）
+            # ② キャッシュ状態を診断（デバッグ用）
+            _h = feed._history
+            if len(_h) > 1:
+                _span = _h[-1][0] - _h[0][0]
+                logger.info(f"[CACHE] 件数={len(_h)} span={_span:.0f}s oldest={_h[0][0]:.0f} newest={_h[-1][0]:.0f}")
+            else:
+                logger.warning(f"[CACHE] 件数={len(_h)} (データ不足)")
+
+            # ③ BTC価格はWebSocketキャッシュから即取得（遅延ゼロ）
             signal = analyze(
                 feed=feed,
                 up_price=market.up_price,
