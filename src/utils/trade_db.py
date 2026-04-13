@@ -146,5 +146,19 @@ class TradeDB:
             "pnl": pnl or 0.0,
         }
 
+    def consecutive_losses(self) -> int:
+        """直近の連続負け数を返す（勝ちが出た時点でリセット）"""
+        rows = self._conn.execute(
+            "SELECT status FROM trades WHERE status != 'pending' "
+            "ORDER BY timestamp DESC LIMIT 10"
+        ).fetchall()
+        count = 0
+        for (status,) in rows:
+            if status == "lost":
+                count += 1
+            else:
+                break
+        return count
+
     def close(self) -> None:
         self._conn.close()

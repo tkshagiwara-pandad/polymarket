@@ -19,10 +19,14 @@ from src.connectors.polymarket import PolymarketConnector
 from src.utils.notifier import Notifier
 from src.btc_updown.bot import run_btc_updown
 
-INITIAL_BALANCE_USD = float(os.getenv("INITIAL_BALANCE", "1000.0"))
-TRADE_SIZE_USD = float(os.getenv("TRADE_SIZE", "10.0"))
-MIN_EDGE = float(os.getenv("MIN_EDGE", "0.04"))
-MIN_CHANGE_PCT = float(os.getenv("MIN_CHANGE_PCT", "0.15"))
+INITIAL_BALANCE_USD = float(os.getenv("INITIAL_BALANCE", "20.0"))
+TRADE_SIZE_USD      = float(os.getenv("TRADE_SIZE", "3.0"))
+MIN_EDGE            = float(os.getenv("MIN_EDGE", "0.04"))
+MIN_CHANGE_PCT      = float(os.getenv("MIN_CHANGE_PCT", "0.15"))
+DAILY_LOSS_LIMIT    = float(os.getenv("DAILY_LOSS_LIMIT", "15.0"))
+USE_KELLY           = os.getenv("USE_KELLY", "false").lower() == "true"
+KELLY_FRACTION      = float(os.getenv("KELLY_FRACTION", "0.25"))
+KELLY_MIN_SIZE      = float(os.getenv("KELLY_MIN_SIZE", "2.0"))
 
 
 async def main():
@@ -32,8 +36,9 @@ async def main():
     logger.info("=" * 50)
     logger.info("  BTC 5分 Up/Down ボット")
     logger.info(f"  モード: {mode}")
-    logger.info(f"  1回あたりサイズ: ${TRADE_SIZE_USD}")
+    logger.info(f"  1回あたりサイズ: ${TRADE_SIZE_USD}（最大）")
     logger.info(f"  最小エッジ: {MIN_EDGE:.0%}")
+    logger.info(f"  Kelly: {'有効' if USE_KELLY else '無効'} | 日次損失上限: ${DAILY_LOSS_LIMIT}")
     logger.info("=" * 50)
 
     risk_manager = RiskManager(config.risk, INITIAL_BALANCE_USD)
@@ -63,6 +68,11 @@ async def main():
             trade_size_usd=TRADE_SIZE_USD,
             min_edge=MIN_EDGE,
             min_change_pct=MIN_CHANGE_PCT,
+            initial_balance=INITIAL_BALANCE_USD,
+            daily_loss_limit=DAILY_LOSS_LIMIT,
+            use_kelly=USE_KELLY,
+            kelly_fraction=KELLY_FRACTION,
+            kelly_min_size=KELLY_MIN_SIZE,
         )
     )
 

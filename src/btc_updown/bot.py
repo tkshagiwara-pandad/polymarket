@@ -20,6 +20,28 @@ from src.utils.notifier import Notifier
 from src.utils.trade_db import TradeDB, TradeRecord
 
 
+def _kelly_size(
+    p_win: float,
+    market_price: float,
+    balance: float,
+    kelly_fraction: float,
+    min_size: float,
+    max_size: float,
+) -> float:
+    """
+    Fractional Kelly 基準でポジションサイズを計算する。
+
+    Polymarketのペイアウト: 勝ち時 (1/price - 1) * 0.98 の純利益（2%手数料考慮）
+    Kelly公式: f* = (p*b - (1-p)) / b
+    """
+    b = (1.0 / market_price - 1.0) * 0.98
+    if b <= 0:
+        return min_size
+    kelly_f = max(0.0, (p_win * b - (1.0 - p_win)) / b)
+    size = balance * kelly_f * kelly_fraction
+    return round(max(min_size, min(size, max_size)), 2)
+
+
 async def _wait_for_window_open() -> None:
     """次の5分ウィンドウの開始まで精密に待機する"""
     now = time.time()
@@ -116,12 +138,18 @@ async def run_btc_updown(
     trade_size_usd: float = 10.0,
     min_edge: float = 0.04,
     min_change_pct: float = 0.15,
+    initial_balance: float = 20.0,
+    daily_loss_limit: float = 15.0,
+    use_kelly: bool = False,
+    kelly_fraction: float = 0.25,
+    kelly_min_size: float = 2.0,
 ) -> None:
     """BTC 5分 Up/Down ボットのメインループ（WebSocket版）"""
 
     logger.info("=== BTC 5分 Up/Down ボット起動（WebSocket版）===")
     logger.info(f"  サイズ: ${trade_size_usd} | エッジ閾値: {min_edge:.0%} | 変化率閾値: {min_change_pct:.2f}%")
     logger.info(f"  モード: {'📝 PAPER' if config.paper_trading else '🔴 LIVE'}")
+    logger.info(f"  Kelly: {'有効' if use_kelly else '無効（固定サイズ）'} | 日次損失上限: ${daily_loss_limit}")
 
     # DB・WebSocket・日次サマリーを初期化
     db = TradeDB()
@@ -149,6 +177,7 @@ async def run_btc_updown(
         )
 
     last_traded_window = 0
+    cooldown_windows_remaining = 0  # 連続負けクールダウン残ウィンドウ数
 
     try:
         while True:
@@ -162,9 +191,38 @@ async def run_btc_updown(
                 await asyncio.sleep(1)
                 continue
 
+            # ① 連続負けクールダウン確認
+            if cooldown_windows_remaining > 0:
+                cooldown_windows_remaining -= 1
+                logger.info(f"⏸ クールダウン中 | 残り{cooldown_windows_remaining + 1}ウィンドウ")
+                last_traded_window = window_ts
+                continue
+
+            # ② 日次損失上限確認
+            daily = db.daily_summary()
+            if daily["pnl"] < -daily_loss_limit:
+                logger.warning(
+                    f"⛔ 日次損失上限超過 | 本日: {daily['pnl']:+.2f}$ < -${daily_loss_limit:.0f} → 本日取引停止"
+                )
+                last_traded_window = window_ts
+                continue
+
+            # ③ 連続負け確認（DB確定済みのみ、約5〜10分遅れ）
+            consecutive = db.consecutive_losses()
+            if consecutive >= 3:
+                cooldown_windows_remaining = 3
+                logger.warning(f"⛔ {consecutive}連敗検出 → 15分クールダウン開始")
+                last_traded_window = window_ts
+                continue
+            elif consecutive >= 2:
+                cooldown_windows_remaining = 1
+                logger.warning(f"⚠ {consecutive}連敗検出 → 次の1ウィンドウスキップ")
+                last_traded_window = window_ts
+                continue
+
             t0 = time.time()
 
-            # ① Polymarketの最新市場価格を取得
+            # ④ Polymarketの最新市場価格を取得
             market = await fetch_current_market()
             if market is None:
                 logger.warning("マーケット未検出。スキップ")
@@ -178,7 +236,7 @@ async def run_btc_updown(
                 f"({(t_market - t0)*1000:.0f}ms)"
             )
 
-            # ② シグナル判定
+            # ⑤ シグナル判定
             signal = analyze(
                 feed=feed,
                 up_price=market.up_price,
@@ -191,14 +249,33 @@ async def run_btc_updown(
                 last_traded_window = window_ts
                 continue
 
-            # ③ リスクチェック
-            approved, reason = risk_manager.can_trade(trade_size_usd, market.condition_id)
+            # ⑥ Kelly サイジング（または固定サイズ）
+            if use_kelly:
+                total_pnl = db.total_summary()["pnl"]
+                current_balance = max(initial_balance + total_pnl, kelly_min_size * 3)
+                actual_size = _kelly_size(
+                    p_win=signal.confidence,
+                    market_price=signal.market_price,
+                    balance=current_balance,
+                    kelly_fraction=kelly_fraction,
+                    min_size=kelly_min_size,
+                    max_size=trade_size_usd,
+                )
+                logger.info(
+                    f"Kelly サイジング: 残高=${current_balance:.2f} "
+                    f"p_win={signal.confidence:.3f} → ${actual_size}"
+                )
+            else:
+                actual_size = trade_size_usd
+
+            # ⑦ リスクチェック
+            approved, reason = risk_manager.can_trade(actual_size, market.condition_id)
             if not approved:
                 logger.warning(f"リスク不合格: {reason}")
                 last_traded_window = window_ts
                 continue
 
-            # ④ 発注
+            # ⑧ 発注
             if signal.direction == "up":
                 token_id = market.up_token_id
                 price = market.up_price
@@ -210,22 +287,22 @@ async def run_btc_updown(
                 market_id=token_id,
                 side="BUY",
                 price=price,
-                size=trade_size_usd,
+                size=actual_size,
             )
 
             t_order = time.time()
             total_ms = (t_order - t0) * 1000
 
             if result:
-                fee = trade_size_usd * 0.002
-                risk_manager.register_trade(market.condition_id, trade_size_usd, fee)
+                fee = actual_size * 0.002
+                risk_manager.register_trade(market.condition_id, actual_size, fee)
 
-                # ⑤ DB に記録
+                # ⑨ DB に記録
                 trade_id = db.log_trade(TradeRecord(
                     direction=signal.direction,
                     market_id=token_id,
                     price=price,
-                    size_usd=trade_size_usd,
+                    size_usd=actual_size,
                     fee_usd=fee,
                     btc_price=signal.btc_now,
                     change_pct=signal.change_pct,
@@ -233,15 +310,16 @@ async def run_btc_updown(
                     order_id=str(result) if result else "",
                 ))
 
+                kelly_tag = f" Kelly=${actual_size}" if use_kelly else ""
                 logger.info(
-                    f"✅ 発注完了: {signal.direction.upper()} ${trade_size_usd} @ {price:.3f} "
+                    f"✅ 発注完了: {signal.direction.upper()} ${actual_size}{kelly_tag} @ {price:.3f} "
                     f"総遅延={total_ms:.0f}ms"
                 )
                 await notifier.send(
                     title="BTC約定",
                     message=(
                         f"{'📈 UP' if signal.direction == 'up' else '📉 DOWN'} "
-                        f"${trade_size_usd} @ {price:.3f}\n"
+                        f"${actual_size} @ {price:.3f}\n"
                         f"BTC: ${signal.btc_ref:,.0f} → ${signal.btc_now:,.0f} "
                         f"(300s:{signal.change_pct:+.2f}% / 60s:{signal.change_pct_short:+.2f}%)\n"
                         f"edge={signal.edge:+.3f} 遅延={total_ms:.0f}ms\n"
@@ -249,7 +327,7 @@ async def run_btc_updown(
                     ),
                 )
 
-                # ⑥ 5分後に結果を確認（バックグラウンド）
+                # ⑩ 5分後に結果を確認（バックグラウンド）
                 asyncio.create_task(_check_trade_result(
                     db=db,
                     trade_id=trade_id,
@@ -257,7 +335,7 @@ async def run_btc_updown(
                     btc_at_entry=signal.btc_now,
                     feed=feed,
                     notifier=notifier,
-                    trade_size_usd=trade_size_usd,
+                    trade_size_usd=actual_size,
                     price=price,
                 ))
             else:
