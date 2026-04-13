@@ -78,7 +78,7 @@ async def fetch_kalshi_markets(limit: int = 100) -> list[RawMarket]:
     if not AIOHTTP_AVAILABLE:
         return _mock_kalshi()
 
-    url = "https://trading-api.kalshi.com/trade-api/v2/markets"
+    url = "https://api.elections.kalshi.com/trade-api/v2/markets"
     params = {"status": "open", "limit": limit}
     try:
         async with aiohttp.ClientSession() as session:

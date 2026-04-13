@@ -28,7 +28,7 @@ from src.strategies.arbitrage import MarketPrice
 
 
 class KalshiConnector:
-    BASE_URL = "https://trading-api.kalshi.com/trade-api/v2"
+    BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 
     def __init__(
         self,
