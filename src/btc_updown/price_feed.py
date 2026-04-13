@@ -45,7 +45,7 @@ class BinancePriceFeed:
     def price_n_seconds_ago(self, n: int) -> Optional[float]:
         """n秒前の価格を返す。データ不足の場合はNone"""
         if not self._history:
-            logger.debug(f"price_n_seconds_ago({n}): deque空")
+            logger.warning(f"price_n_seconds_ago({n}): deque空（WebSocket未受信?）")
             return None
         # ローカル時計ではなく Binance の最新タイムスタンプを基準にする
         latest_ts = self._history[-1][0]
