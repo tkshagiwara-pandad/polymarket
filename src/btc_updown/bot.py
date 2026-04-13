@@ -139,7 +139,7 @@ async def run_btc_updown(
                         f"{'📈 UP' if signal.direction == 'up' else '📉 DOWN'} "
                         f"${trade_size_usd} @ {price:.3f}\n"
                         f"BTC: ${signal.btc_ref:,.0f} → ${signal.btc_now:,.0f} "
-                        f"({signal.change_pct:+.2f}%)\n"
+                        f"(300s:{signal.change_pct:+.2f}% / 60s:{signal.change_pct_short:+.2f}%)\n"
                         f"edge={signal.edge:+.3f} 遅延={total_ms:.0f}ms\n"
                         f"{'📝 PAPER' if config.paper_trading else '🔴 LIVE'}"
                     ),
