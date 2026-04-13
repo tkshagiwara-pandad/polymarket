@@ -79,25 +79,52 @@ async def fetch_kalshi_markets(limit: int = 100) -> list[RawMarket]:
         return _mock_kalshi()
 
     url = "https://api.elections.kalshi.com/trade-api/v2/markets"
-    params = {"status": "open", "limit": limit}
+    # 政治・経済系カテゴリに絞る（スポーツを除外）
+    POLITICAL_SERIES = ["KXFED", "KXPRES", "KXELECT", "KXBTC", "KXGDP",
+                        "KXINFL", "KXUNEMP", "KXUSELECT", "KXRECESSION"]
+    markets: list[RawMarket] = []
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as r:
-                if r.status != 200:
-                    logger.warning(f"Kalshi API エラー: {r.status}")
-                    return _mock_kalshi()
-                data = await r.json()
-                return [
-                    RawMarket(
-                        market_id=m.get("ticker", ""),
-                        venue="kalshi",
-                        title=m.get("title", ""),
-                        end_date=m.get("close_time"),
-                        volume=float(m.get("volume", 0)),
-                    )
-                    for m in data.get("markets", [])
-                    if m.get("ticker") and m.get("title")
-                ]
+            # シリーズごとに取得して結合
+            for series in POLITICAL_SERIES:
+                params = {"status": "open", "limit": 20, "series_ticker": series}
+                async with session.get(
+                    url, params=params, timeout=aiohttp.ClientTimeout(total=10)
+                ) as r:
+                    if r.status != 200:
+                        continue
+                    data = await r.json()
+                    markets += [
+                        RawMarket(
+                            market_id=m.get("ticker", ""),
+                            venue="kalshi",
+                            title=m.get("title", ""),
+                            end_date=m.get("close_time"),
+                            volume=float(m.get("volume", 0)),
+                        )
+                        for m in data.get("markets", [])
+                        if m.get("ticker") and m.get("title")
+                    ]
+            # フォールバック：絞り込みで0件なら全件取得
+            if not markets:
+                params = {"status": "open", "limit": limit}
+                async with session.get(
+                    url, params=params, timeout=aiohttp.ClientTimeout(total=10)
+                ) as r:
+                    if r.status == 200:
+                        data = await r.json()
+                        markets = [
+                            RawMarket(
+                                market_id=m.get("ticker", ""),
+                                venue="kalshi",
+                                title=m.get("title", ""),
+                                end_date=m.get("close_time"),
+                                volume=float(m.get("volume", 0)),
+                            )
+                            for m in data.get("markets", [])
+                            if m.get("ticker") and m.get("title")
+                        ]
+            return markets
     except Exception as e:
         logger.error(f"Kalshiマーケット取得失敗: {e}")
         return _mock_kalshi()
