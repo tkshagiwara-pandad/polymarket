@@ -20,6 +20,10 @@ LONG_LOOKBACK  = 300  # 秒
 # ボラティリティフィルター: 長期変化率がこれ未満はスキップ
 MIN_VOLATILITY_PCT = 0.05
 
+# 市場価格フィルター: 0.5からの乖離がこれ未満はスキップ（競合ボットが多い）
+# 例: 0.03なら 0.47〜0.53 の範囲はスキップ
+MIN_MARKET_IMBALANCE = 0.03
+
 
 @dataclass
 class Signal:
@@ -94,7 +98,16 @@ def analyze(
     market_price = up_price if direction == "up" else down_price
     abs_change = abs(change_long)
 
-    # ④ 勝率推定: 両タイムフレーム一致時はボーナス（最大68%）
+    # ④ 市場価格フィルター: 0.5に近すぎる（競合激しい）場合はスキップ
+    imbalance = abs(market_price - 0.5)
+    if imbalance < MIN_MARKET_IMBALANCE:
+        logger.info(
+            f"[スキップ] 市場が均衡 | "
+            f"市場={market_price:.3f} 0.5からの乖離={imbalance:.3f} < {MIN_MARKET_IMBALANCE}"
+        )
+        return _no_trade(btc_now, "市場均衡", btc_ref_long, change_long, change_short)
+
+    # ⑤ 勝率推定: 両タイムフレーム一致時はボーナス（最大68%）
     # 短期モメンタムも同方向 → より確実性が高い
     short_bonus = min(abs(change_short) * 0.01, 0.03)  # 最大+3%ボーナス
     p_win = min(0.50 + abs_change * 0.05 + short_bonus, 0.68)
