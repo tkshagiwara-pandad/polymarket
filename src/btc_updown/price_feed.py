@@ -28,9 +28,8 @@ class BinancePriceFeed:
     """
 
     def __init__(self):
-        # (unix_time_float, price_float) を最大2000件保持
-        # Binanceは約5件/秒送信 → 2000件 ≈ 400秒分（300秒ルックバックに十分）
-        self._history: deque[tuple[float, float]] = deque(maxlen=2000)
+        # maxlen なし: 時間ベース（400秒分）でトリムするため件数上限不要
+        self._history: deque[tuple[float, float]] = deque()
         self._current: float = 0.0
         self._connected: bool = False
         self._reconnect_interval: float = 3.0
@@ -94,6 +93,9 @@ class BinancePriceFeed:
                     ):
                         break
 
+    # 保持する最大秒数（ルックバック300秒 + バッファ100秒）
+    _KEEP_SECONDS = 400
+
     def _handle(self, raw: str) -> None:
         """aggTradeメッセージを処理してキャッシュを更新する"""
         try:
@@ -103,5 +105,9 @@ class BinancePriceFeed:
             ts = data["T"] / 1000.0  # ミリ秒 → 秒
             self._history.append((ts, price))
             self._current = price
+            # 400秒より古いエントリを左から削除（件数ではなく時間で管理）
+            cutoff = ts - self._KEEP_SECONDS
+            while self._history and self._history[0][0] < cutoff:
+                self._history.popleft()
         except Exception:
             pass
