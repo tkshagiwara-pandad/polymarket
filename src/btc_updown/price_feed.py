@@ -24,12 +24,13 @@ WS_URL = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade"
 class BinancePriceFeed:
     """
     Binance aggTradeストリームでBTC/USDTをリアルタイム取得。
-    価格は(timestamp, price)のデックに300秒分保持。
+    価格は(timestamp, price)のデックに最大2000件（約400秒分）保持。
     """
 
     def __init__(self):
-        # (unix_time_float, price_float) を最大300件保持（約5分分）
-        self._history: deque[tuple[float, float]] = deque(maxlen=300)
+        # (unix_time_float, price_float) を最大2000件保持
+        # Binanceは約5件/秒送信 → 2000件 ≈ 400秒分（300秒ルックバックに十分）
+        self._history: deque[tuple[float, float]] = deque(maxlen=2000)
         self._current: float = 0.0
         self._connected: bool = False
         self._reconnect_interval: float = 3.0
