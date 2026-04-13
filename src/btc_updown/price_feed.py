@@ -44,8 +44,12 @@ class BinancePriceFeed:
 
     def price_n_seconds_ago(self, n: int) -> Optional[float]:
         """n秒前の価格を返す。データ不足の場合はNone"""
-        target_ts = time.time() - n
-        # 最も target_ts に近いエントリを探す
+        if not self._history:
+            return None
+        # ローカル時計ではなく Binance の最新タイムスタンプを基準にする
+        # → Mac のクロックと Binance サーバー時刻のズレを回避
+        latest_ts = self._history[-1][0]
+        target_ts = latest_ts - n
         best = None
         for ts, price in self._history:
             if ts <= target_ts:
