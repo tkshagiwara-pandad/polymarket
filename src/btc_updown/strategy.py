@@ -1,112 +1,81 @@
 """
-BTC 5分 Up/Down 売買戦略
-- Binance公開APIでBTC価格を取得（認証不要）
-- 直近5分のモメンタムを計算
-- 市場価格と比較してエッジを判定
+BTC 5分 Up/Down 売買戦略（WebSocket版）
+- BinancePriceFeedからリアルタイム価格を取得
+- REST APIポーリングなし → ミリ秒レベルで判断
 """
 from dataclasses import dataclass
-from typing import Optional
 from loguru import logger
 
-try:
-    import aiohttp
-    AIOHTTP_AVAILABLE = True
-except ImportError:
-    AIOHTTP_AVAILABLE = False
+from src.btc_updown.price_feed import BinancePriceFeed
 
 
 @dataclass
 class Signal:
-    direction: str      # "up" or "down"
-    confidence: float   # 0〜1
+    direction: str       # "up" or "down"
+    confidence: float    # 推定勝率 0〜1
     btc_now: float
-    btc_5m_ago: float
+    btc_ref: float       # 比較基準価格（300秒前）
     change_pct: float
     market_price: float  # 取引方向の現在市場価格
-    edge: float          # 期待エッジ（正なら取引価値あり）
-    trade: bool          # Trueなら取引実行
-
-
-async def fetch_btc_prices() -> Optional[tuple[float, float]]:
-    """
-    Binance APIから現在価格と5分前の終値を取得する。
-    Returns: (現在価格, 5分前価格) or None
-    """
-    if not AIOHTTP_AVAILABLE:
-        return None
-
-    url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": "BTCUSDT", "interval": "1m", "limit": 6}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url, params=params,
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as r:
-                if r.status != 200:
-                    logger.warning(f"Binance API エラー: {r.status}")
-                    return None
-                klines = await r.json()
-                if len(klines) < 6:
-                    return None
-                # klines[i] = [open_time, open, high, low, close, ...]
-                price_now = float(klines[-1][4])   # 最新足の終値
-                price_5m_ago = float(klines[0][4]) # 5本前の終値
-                return price_now, price_5m_ago
-    except Exception as e:
-        logger.error(f"BTC価格取得失敗: {e}")
-        return None
+    edge: float          # 期待エッジ
+    trade: bool          # True なら取引実行
 
 
 def analyze(
+    feed: BinancePriceFeed,
     up_price: float,
     down_price: float,
-    btc_now: float,
-    btc_5m_ago: float,
+    lookback_sec: int = 300,
     min_edge: float = 0.04,
     min_change_pct: float = 0.15,
 ) -> Signal:
     """
-    モメンタムと市場価格からシグナルを生成する。
+    WebSocketキャッシュから即座にシグナルを生成する（遅延ゼロ）。
 
     ロジック:
-    - BTCが過去5分で上昇 → "up"シグナル
-    - BTCが過去5分で下落 → "down"シグナル
-    - シグナル方向の市場価格が低い（安い）ほどエッジが高い
-    - min_edge未満またはmin_change_pct未満なら取引しない
+    1. lookback_sec前のBTC価格と現在を比較
+    2. 上昇 → Up / 下落 → Down
+    3. エッジ = 推定勝率 - 市場価格
     """
-    change_pct = (btc_now - btc_5m_ago) / btc_5m_ago * 100
+    btc_now = feed.current_price
+    btc_ref = feed.price_n_seconds_ago(lookback_sec)
+
+    if btc_ref is None or btc_ref == 0:
+        # データ不足（起動直後など）
+        logger.warning(f"BTC価格キャッシュ不足（{lookback_sec}秒分待機中）")
+        return Signal(
+            direction="none", confidence=0.5,
+            btc_now=btc_now, btc_ref=0, change_pct=0,
+            market_price=0.5, edge=0, trade=False,
+        )
+
+    change_pct = (btc_now - btc_ref) / btc_ref * 100
     abs_change = abs(change_pct)
 
     if change_pct >= 0:
         direction = "up"
         market_price = up_price
-        # モメンタムが"up"なのに市場が"up"を安く評価していればエッジあり
-        edge = (1.0 - market_price) - market_price  # 簡易: payoff - cost
-        # より正確: 期待値 = 1.0 * p_win - market_price
-        # p_win を モメンタム強度から推定（保守的に0.55〜0.65）
-        p_win = min(0.50 + abs_change * 0.05, 0.65)
-        edge = p_win - market_price
     else:
         direction = "down"
         market_price = down_price
-        p_win = min(0.50 + abs_change * 0.05, 0.65)
-        edge = p_win - market_price
 
+    # モメンタム強度から勝率を推定（保守的に最大65%）
+    p_win = min(0.50 + abs_change * 0.05, 0.65)
+    edge = p_win - market_price
     trade = edge >= min_edge and abs_change >= min_change_pct
 
     logger.info(
-        f"シグナル: {direction.upper()} | BTC変化={change_pct:+.2f}% "
-        f"({btc_5m_ago:.0f}→{btc_now:.0f}) | "
-        f"市場価格={market_price:.3f} | edge={edge:+.3f} | "
-        f"取引={'✓' if trade else '✗'}"
+        f"[シグナル] {direction.upper()} | "
+        f"BTC {btc_ref:.0f}→{btc_now:.0f} ({change_pct:+.3f}%) | "
+        f"市場={market_price:.3f} 勝率推定={p_win:.3f} edge={edge:+.3f} | "
+        f"{'✅ 発注' if trade else '⏭ スキップ'}"
     )
 
     return Signal(
         direction=direction,
         confidence=p_win,
         btc_now=btc_now,
-        btc_5m_ago=btc_5m_ago,
+        btc_ref=btc_ref,
         change_pct=change_pct,
         market_price=market_price,
         edge=edge,
