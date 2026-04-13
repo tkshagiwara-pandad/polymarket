@@ -158,6 +158,13 @@ def build_arb_graph(
             kalshi_connector.place_order(opp["kalshi_id"], kalshi_side, opp["kalshi_price"], int(size_usd)),
         )
 
+        # ライブモードで注文が失敗した場合は残高を変更しない
+        if not config.paper_trading and (poly_result is None or kalshi_result is None):
+            logger.error(
+                f"注文失敗のため取引をキャンセル: poly={poly_result} kalshi={kalshi_result}"
+            )
+            return {**state, "trade_result": None}
+
         # リスクマネージャーに登録
         risk_manager.register_trade(opp["poly_id"], size_usd, fee)
         db.update_portfolio(risk_manager.state.portfolio_usd)
