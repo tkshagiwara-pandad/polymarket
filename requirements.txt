@@ -1,14 +1,14 @@
 # Polymarket / Kalshi アービトラージボット
 # インストール: pip install -r requirements.txt
 
-# 取引所クライアント
-py-clob-client>=0.28.0          # Polymarket CLOB API
-# kalshi-python>=1.0.0          # Kalshi API（要別途インストール）
+# 取引所クライアント（ライブ取引時のみ必要）
+# py-clob-client>=0.28.0          # Python 3.10-3.13 が必要
+# kalshi-python>=1.0.0            # 要別途インストール
 
 # AIエージェントフレームワーク
 langgraph>=1.1.0
 langchain-core>=0.1.0
-crewai>=1.0.0
+# crewai>=1.0.0                   # Python 3.10-3.13 が必要、未使用のためコメントアウト
 
 # 非同期・HTTP
 aiohttp>=3.8.0
