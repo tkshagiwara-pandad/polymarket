@@ -25,7 +25,8 @@ async def _wait_for_window_open() -> None:
     wait = next_boundary - now
     if wait > 0:
         logger.info(f"次のウィンドウまで {wait:.1f}秒待機")
-        await asyncio.sleep(wait)
+        # +0.2秒: asyncio.sleep が境界直前に起きるのを防ぐ
+        await asyncio.sleep(wait + 0.2)
 
 
 async def run_btc_updown(
