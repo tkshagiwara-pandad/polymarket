@@ -144,8 +144,8 @@ def match_markets(
 async def discover_market_pairs(
     poly_limit: int = 100,
     kalshi_limit: int = 100,
-    similarity_threshold: float = 0.25,
-    min_volume: float = 1000.0,
+    similarity_threshold: float = 0.12,
+    min_volume: float = 100.0,
 ) -> list[tuple[str, str, str]]:
     """マーケットを自動発見してペアリストを返す"""
     poly_markets, kalshi_markets = await asyncio.gather(
