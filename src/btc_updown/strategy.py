@@ -35,6 +35,13 @@ ACTIVE_HOURS_JST: set[int] | None = {
 }
 # 除外: 2, 3, 4, 5, 6 JST（US深夜〜早朝、流動性低い）
 
+# トレンドフィルター: 15分方向がシグナルと逆の場合はスキップ
+TREND_LOOKBACK = 900        # 秒（15分）
+TREND_MIN_CHANGE = 0.08     # 15分変化率がこれ未満の場合はトレンド判定スキップ（フラット）
+
+# 出来高フィルター: 直近5分の出来高が長期平均のX倍以上必要
+MIN_VOLUME_RATIO = 1.2      # 1.2 = 平均の120%以上
+
 
 @dataclass
 class Signal:
@@ -125,7 +132,35 @@ def analyze(
         )
         return _no_trade(btc_now, "市場均衡", btc_ref_long, change_long, change_short)
 
-    # ⑤ 勝率推定: 両タイムフレーム一致時はボーナス（最大68%）
+    # ⑤ トレンドフィルター: 15分方向がシグナルと逆ならスキップ
+    btc_ref_trend = feed.price_n_seconds_ago(TREND_LOOKBACK)
+    if btc_ref_trend is not None and btc_ref_trend > 0:
+        trend_change = (btc_now - btc_ref_trend) / btc_ref_trend * 100
+        if abs(trend_change) >= TREND_MIN_CHANGE:
+            trend_dir = "up" if trend_change >= 0 else "down"
+            if trend_dir != direction:
+                logger.info(
+                    f"[スキップ] トレンド逆方向 | "
+                    f"15min: {trend_change:+.3f}%({trend_dir}) vs シグナル: {direction}"
+                )
+                return _no_trade(btc_now, "トレンド逆方向", btc_ref_long, change_long, change_short)
+            else:
+                logger.debug(f"[トレンド一致] 15min: {trend_change:+.3f}%({trend_dir})")
+    else:
+        logger.debug("[トレンド] データ不足（起動後15分未満）→ スキップせず続行")
+
+    # ⑥ 出来高フィルター: 直近5分出来高が長期平均以上か確認
+    vol_ratio = feed.volume_ratio(short_sec=300, long_sec=1200)
+    if vol_ratio is not None and vol_ratio < MIN_VOLUME_RATIO:
+        logger.info(
+            f"[スキップ] 出来高不足 | "
+            f"ratio={vol_ratio:.2f} < {MIN_VOLUME_RATIO}（動きに確信なし）"
+        )
+        return _no_trade(btc_now, "出来高不足", btc_ref_long, change_long, change_short)
+    elif vol_ratio is not None:
+        logger.debug(f"[出来高OK] ratio={vol_ratio:.2f}")
+
+    # ⑧ 勝率推定: 両タイムフレーム一致時はボーナス（最大68%）
     # 短期モメンタムも同方向 → より確実性が高い
     short_bonus = min(abs(change_short) * 0.01, 0.03)  # 最大+3%ボーナス
     p_win = min(0.50 + abs_change * 0.05 + short_bonus, 0.68)
