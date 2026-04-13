@@ -45,10 +45,12 @@ class BinancePriceFeed:
     def price_n_seconds_ago(self, n: int) -> Optional[float]:
         """n秒前の価格を返す。データ不足の場合はNone"""
         if not self._history:
+            logger.debug(f"price_n_seconds_ago({n}): deque空")
             return None
         # ローカル時計ではなく Binance の最新タイムスタンプを基準にする
-        # → Mac のクロックと Binance サーバー時刻のズレを回避
         latest_ts = self._history[-1][0]
+        oldest_ts = self._history[0][0]
+        span = latest_ts - oldest_ts
         target_ts = latest_ts - n
         best = None
         for ts, price in self._history:
@@ -56,6 +58,11 @@ class BinancePriceFeed:
                 best = price
             else:
                 break
+        if best is None:
+            logger.warning(
+                f"[キャッシュ診断] n={n}s 件数={len(self._history)} "
+                f"span={span:.0f}s oldest={oldest_ts:.0f} newest={latest_ts:.0f} target={target_ts:.0f}"
+            )
         return best
 
     def change_pct(self, seconds: int = 300) -> Optional[float]:
