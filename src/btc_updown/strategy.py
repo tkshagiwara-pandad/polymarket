@@ -8,10 +8,14 @@ BTC 5分 Up/Down 売買戦略（WebSocket版）
 2. ボラティリティフィルター: 動きが小さすぎる場合はスキップ
 """
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from loguru import logger
 
 from src.btc_updown.price_feed import BinancePriceFeed
+
+# JST = UTC+9
+_JST = timezone(timedelta(hours=9))
 
 # 短期・長期の2タイムフレーム
 SHORT_LOOKBACK = 60   # 秒
@@ -23,6 +27,13 @@ MIN_VOLATILITY_PCT = 0.05
 # 市場価格フィルター: 0.5からの乖離がこれ未満はスキップ（競合ボットが多い）
 # 例: 0.03なら 0.47〜0.53 の範囲はスキップ
 MIN_MARKET_IMBALANCE = 0.03
+
+# 取引許可時間帯（JST）: バックテストで勝率が低い深夜帯（2〜6時）を除外
+# None にすると時間帯フィルターを無効化
+ACTIVE_HOURS_JST: set[int] | None = {
+    7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1
+}
+# 除外: 2, 3, 4, 5, 6 JST（US深夜〜早朝、流動性低い）
 
 
 @dataclass
@@ -57,6 +68,13 @@ def analyze(
     4. ボラティリティフィルター: 300秒変化率 < 0.05% → スキップ
     5. エッジ = 推定勝率 - 市場価格
     """
+    # ⓪ 時間帯フィルター
+    if ACTIVE_HOURS_JST is not None:
+        jst_hour = datetime.now(_JST).hour
+        if jst_hour not in ACTIVE_HOURS_JST:
+            logger.info(f"[スキップ] 非取引時間帯 | JST {jst_hour:02d}:xx（対象外）")
+            return _no_trade(feed.current_price, f"非取引時間帯(JST {jst_hour:02d}時)")
+
     btc_now = feed.current_price
 
     # 長期（300秒）データ取得

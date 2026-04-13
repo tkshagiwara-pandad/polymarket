@@ -179,6 +179,23 @@ def print_results(trades: list, days: int, market_price: float) -> None:
             wr = sum(1 for t in subset if t["won"]) / len(subset)
             print(f"    変化率 >= {chg_min:.2f}%: {len(subset):3d}回  勝率={wr:.1%}")
 
+    # 時間帯別勝率（JST = UTC+9）
+    print(f"\n  時間帯別勝率（JST）:")
+    hour_stats: dict[int, dict] = {}
+    for t in trades:
+        h = (datetime.fromtimestamp(t["ts"]).hour + 9) % 24  # UTC→JST
+        if h not in hour_stats:
+            hour_stats[h] = {"total": 0, "wins": 0}
+        hour_stats[h]["total"] += 1
+        if t["won"]:
+            hour_stats[h]["wins"] += 1
+    for h in sorted(hour_stats.keys()):
+        s = hour_stats[h]
+        wr = s["wins"] / s["total"]
+        bar = "█" * s["wins"] + "░" * (s["total"] - s["wins"])
+        flag = " ◀ 高勝率" if wr >= 0.55 else (" ◀ 低勝率" if wr < 0.40 else "")
+        print(f"    {h:02d}:00 JST  {s['total']:3d}回  勝率={wr:.0%}  {bar[:20]}{flag}")
+
     # 最近10件
     print(f"\n  直近10件:")
     for t in trades[-10:]:
