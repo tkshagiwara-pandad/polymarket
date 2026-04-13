@@ -42,6 +42,10 @@ TREND_MIN_CHANGE = 0.08     # 15分変化率がこれ未満の場合はトレン
 # 出来高フィルター: 直近5分の出来高が長期平均のX倍以上必要
 MIN_VOLUME_RATIO = 1.2      # 1.2 = 平均の120%以上
 
+# モメンタム加速フィルター: 60秒変化率が「300秒÷5」の1分平均に対してこの比率以上必要
+# 1.0 = 完全加速（60sが300s平均を超える）、0.8 = 80%以上で通過（やや緩め）
+MIN_ACCELERATION_RATIO = 0.8
+
 
 @dataclass
 class Signal:
@@ -123,7 +127,18 @@ def analyze(
     market_price = up_price if direction == "up" else down_price
     abs_change = abs(change_long)
 
-    # ④ 市場価格フィルター: 0.5に近すぎる（競合激しい）場合はスキップ
+    # ④ モメンタム加速フィルター
+    # 60秒の変化率が「300秒÷5」の1分あたり平均を下回る = 勢いが鈍化中 → スキップ
+    per_min_avg = abs(change_long) / 5
+    if abs(change_short) < per_min_avg * MIN_ACCELERATION_RATIO:
+        logger.info(
+            f"[スキップ] モメンタム加速なし | "
+            f"60s={abs(change_short):.3f}% < 300s平均/min={per_min_avg:.3f}%×{MIN_ACCELERATION_RATIO} "
+            f"(ratio={abs(change_short)/per_min_avg:.2f})"
+        )
+        return _no_trade(btc_now, "モメンタム加速なし", btc_ref_long, change_long, change_short)
+
+    # ⑤ 市場価格フィルター: 0.5に近すぎる（競合激しい）場合はスキップ
     imbalance = abs(market_price - 0.5)
     if imbalance < MIN_MARKET_IMBALANCE:
         logger.info(
@@ -132,7 +147,7 @@ def analyze(
         )
         return _no_trade(btc_now, "市場均衡", btc_ref_long, change_long, change_short)
 
-    # ⑤ トレンドフィルター: 15分方向がシグナルと逆ならスキップ
+    # ⑥ トレンドフィルター: 15分方向がシグナルと逆ならスキップ
     btc_ref_trend = feed.price_n_seconds_ago(TREND_LOOKBACK)
     if btc_ref_trend is not None and btc_ref_trend > 0:
         trend_change = (btc_now - btc_ref_trend) / btc_ref_trend * 100
@@ -149,7 +164,7 @@ def analyze(
     else:
         logger.debug("[トレンド] データ不足（起動後15分未満）→ スキップせず続行")
 
-    # ⑥ 出来高フィルター: 直近5分出来高が長期平均以上か確認
+    # ⑦ 出来高フィルター: 直近5分出来高が長期平均以上か確認
     vol_ratio = feed.volume_ratio(short_sec=300, long_sec=1200)
     if vol_ratio is not None and vol_ratio < MIN_VOLUME_RATIO:
         logger.info(
@@ -160,7 +175,7 @@ def analyze(
     elif vol_ratio is not None:
         logger.debug(f"[出来高OK] ratio={vol_ratio:.2f}")
 
-    # ⑧ 勝率推定: 両タイムフレーム一致時はボーナス（最大68%）
+    # ⑧ 勝率推定・発注判断: 両タイムフレーム一致時はボーナス（最大68%）
     # 短期モメンタムも同方向 → より確実性が高い
     short_bonus = min(abs(change_short) * 0.01, 0.03)  # 最大+3%ボーナス
     p_win = min(0.50 + abs_change * 0.05 + short_bonus, 0.68)
