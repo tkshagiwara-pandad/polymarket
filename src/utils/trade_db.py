@@ -54,6 +54,18 @@ class TradeDB:
             )
         """)
         self._conn.commit()
+        # カラム追加マイグレーション（古いDBとの互換性）
+        for col, definition in [
+            ("status",  "TEXT DEFAULT 'pending'"),
+            ("pnl_usd", "REAL DEFAULT 0.0"),
+            ("order_id", "TEXT DEFAULT ''"),
+        ]:
+            try:
+                self._conn.execute(f"ALTER TABLE trades ADD COLUMN {col} {definition}")
+                self._conn.commit()
+                logger.info(f"DB マイグレーション: {col} カラムを追加")
+            except Exception:
+                pass  # カラムが既に存在する場合はスキップ
 
     # ── 書き込み ──────────────────────────────────────
 
