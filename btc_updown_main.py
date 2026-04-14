@@ -78,6 +78,14 @@ async def main():
         )
     )
 
+    # ボットタスクが予期せず終了した場合にエラーを表示
+    def _on_bot_done(task: asyncio.Task) -> None:
+        if not task.cancelled() and task.exception():
+            logger.error(f"ボットタスク異常終了: {task.exception()}", exc_info=task.exception())
+            shutdown_event.set()
+
+    bot_task.add_done_callback(_on_bot_done)
+
     await shutdown_event.wait()
     bot_task.cancel()
 

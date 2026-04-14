@@ -188,18 +188,18 @@ async def run_btc_updown(
 
     logger.info(f"BTC現在価格: ${feed.current_price:,.0f}")
 
-    # 累計サマリーをログに表示
-    total = db.total_summary()
-    if total["total"] > 0:
-        logger.info(
-            f"累計: {total['total']}戦 {total['wins']}勝 "
-            f"勝率={total['win_rate']:.0%} PnL={total['pnl']:+.2f}$"
-        )
-
     last_traded_window = 0
     cooldown_windows_remaining = 0  # 連続負けクールダウン残ウィンドウ数
 
     try:
+        # 累計サマリーをログに表示（try内で例外をキャッチ）
+        total = db.total_summary()
+        if total["total"] > 0:
+            logger.info(
+                f"累計: {total['total']}戦 {total['wins']}勝 "
+                f"勝率={total['win_rate']:.0%} PnL={total['pnl']:+.2f}$"
+            )
+
         while True:
             # 次のウィンドウ境界まで精密待機
             await _wait_for_window_open()
