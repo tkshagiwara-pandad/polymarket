@@ -21,7 +21,7 @@ from src.btc_updown.bot import run_btc_updown
 
 INITIAL_BALANCE_USD = float(os.getenv("INITIAL_BALANCE", "20.0"))
 TRADE_SIZE_USD      = float(os.getenv("TRADE_SIZE", "3.0"))
-MIN_EDGE            = float(os.getenv("MIN_EDGE", "0.005"))
+MIN_EDGE            = float(os.getenv("MIN_EDGE", "-0.01"))
 MIN_CHANGE_PCT      = float(os.getenv("MIN_CHANGE_PCT", "0.02"))
 DAILY_LOSS_LIMIT    = float(os.getenv("DAILY_LOSS_LIMIT", "15.0"))
 USE_KELLY           = os.getenv("USE_KELLY", "false").lower() == "true"

@@ -21,13 +21,11 @@ _JST = timezone(timedelta(hours=9))
 SHORT_LOOKBACK = 60   # 秒
 LONG_LOOKBACK  = 300  # 秒
 
-# ボラティリティフィルター: 長期変化率がこれ未満はスキップ
-MIN_VOLATILITY_PCT = 0.005
+# ボラティリティフィルター: 無効化（0に設定）
+MIN_VOLATILITY_PCT = 0.0
 
-# 市場価格フィルター: 0.5からの乖離がこれ未満はスキップ
-# ※ Polymarket BTC5分市場は常に 0.505/0.495 で固定（乖離=0.005）なので、
-#    0.004 以下に設定して事実上無効化する。完全に0.5/0.5な市場のみ弾く。
-MIN_MARKET_IMBALANCE = 0.003
+# 市場価格フィルター: 無効化
+MIN_MARKET_IMBALANCE = 0.0
 
 # 取引許可時間帯（JST）: バックテストで勝率が低い深夜帯（2〜6時）を除外
 # None にすると時間帯フィルターを無効化
@@ -36,15 +34,15 @@ ACTIVE_HOURS_JST: set[int] | None = {
 }
 # 除外: 2, 3, 4, 5, 6 JST（US深夜〜早朝、流動性低い）
 
-# トレンドフィルター: 15分方向がシグナルと逆の場合はスキップ
-TREND_LOOKBACK = 900        # 秒（15分）
-TREND_MIN_CHANGE = 0.08     # 15分変化率がこれ未満の場合はトレンド判定スキップ（フラット）
+# トレンドフィルター: 無効化（閾値を高くして実質スキップ）
+TREND_LOOKBACK = 900
+TREND_MIN_CHANGE = 99.0     # 実質無効化
 
-# 出来高フィルター: 直近5分の出来高が長期平均のX倍以上必要
-MIN_VOLUME_RATIO = 0.5      # 0.5 = 平均の50%以上（ペーパートレード収集用に緩和）
+# 出来高フィルター: 無効化
+MIN_VOLUME_RATIO = 0.0
 
-# モメンタム加速フィルター: 60秒変化率が「300秒÷5」の1分平均に対してこの比率以上必要
-MIN_ACCELERATION_RATIO = 0.5
+# モメンタム加速フィルター: 無効化
+MIN_ACCELERATION_RATIO = 0.0
 
 
 @dataclass
