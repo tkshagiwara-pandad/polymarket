@@ -22,7 +22,7 @@ SHORT_LOOKBACK = 60   # 秒
 LONG_LOOKBACK  = 300  # 秒
 
 # ボラティリティフィルター: 長期変化率がこれ未満はスキップ
-MIN_VOLATILITY_PCT = 0.02
+MIN_VOLATILITY_PCT = 0.005
 
 # 市場価格フィルター: 0.5からの乖離がこれ未満はスキップ
 # ※ Polymarket BTC5分市場は常に 0.505/0.495 で固定（乖離=0.005）なので、
