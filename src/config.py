@@ -13,7 +13,7 @@ load_dotenv()
 @dataclass
 class RiskConfig:
     """リスク管理設定"""
-    max_position_pct: float = 0.03        # 1トレードあたり最大3%
+    max_position_pct: float = 0.15        # 1トレードあたり最大15%（$20残高で$3取引想定）
     kelly_fraction: float = 0.25          # Kelly係数（保守的に1/4 Kelly）
     max_drawdown_pct: float = 0.10        # 最大ドローダウン10%でキルスイッチ
     min_edge_pct: float = 0.02            # 最小期待エッジ2%
