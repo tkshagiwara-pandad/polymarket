@@ -227,18 +227,19 @@ async def run_btc_updown(
                 last_traded_window = window_ts
                 continue
 
-            # ③ 連続負け確認（DB確定済みのみ、約5〜10分遅れ）
-            consecutive = db.consecutive_losses()
-            if consecutive >= 3:
-                cooldown_windows_remaining = 3
-                logger.warning(f"⛔ {consecutive}連敗検出 → 15分クールダウン開始")
-                last_traded_window = window_ts
-                continue
-            elif consecutive >= 2:
-                cooldown_windows_remaining = 1
-                logger.warning(f"⚠ {consecutive}連敗検出 → 次の1ウィンドウスキップ")
-                last_traded_window = window_ts
-                continue
+            # ③ 連続負け確認（ペーパートレード中は無効化）
+            if not config.paper_trading:
+                consecutive = db.consecutive_losses()
+                if consecutive >= 3:
+                    cooldown_windows_remaining = 3
+                    logger.warning(f"⛔ {consecutive}連敗検出 → 15分クールダウン開始")
+                    last_traded_window = window_ts
+                    continue
+                elif consecutive >= 2:
+                    cooldown_windows_remaining = 1
+                    logger.warning(f"⚠ {consecutive}連敗検出 → 次の1ウィンドウスキップ")
+                    last_traded_window = window_ts
+                    continue
 
             t0 = time.time()
 
