@@ -66,8 +66,8 @@ class RiskManager:
         if size_usd > max_size:
             return False, f"ポジションサイズ超過: ${size_usd:.2f} > ${max_size:.2f}"
 
-        # 総エクスポージャーチェック（最大20%）
-        if (self.total_exposure + size_usd) > self.state.portfolio_usd * 0.20:
+        # 総エクスポージャーチェック（最大60%: 5分取引は結果が5:30後→常に1つ重複するため）
+        if (self.total_exposure + size_usd) > self.state.portfolio_usd * 0.60:
             return False, f"総エクスポージャー超過"
 
         return True, "OK"
