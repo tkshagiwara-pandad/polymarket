@@ -113,13 +113,16 @@ def analyze(
     dir_long  = "up" if change_long  >= 0 else "down"
     dir_short = "up" if change_short >= 0 else "down"
 
-    # ③ 複数タイムフレーム確認: 方向が一致しない場合はスキップ
-    if dir_long != dir_short:
+    # ③ 複数タイムフレーム確認: 60sがノイズ範囲（<0.005%）なら方向チェックをスキップ
+    short_is_noise = abs(change_short) < 0.005
+    if dir_long != dir_short and not short_is_noise:
         logger.info(
             f"[スキップ] タイムフレーム不一致 | "
             f"300s={change_long:+.3f}%({dir_long}) vs 60s={change_short:+.3f}%({dir_short})"
         )
         return _no_trade(btc_now, "タイムフレーム不一致", btc_ref_long, change_long, change_short)
+    if short_is_noise:
+        logger.debug(f"[60sノイズ] {change_short:+.4f}% → 300s方向({dir_long})で続行")
 
     direction = dir_long
     market_price = up_price if direction == "up" else down_price
