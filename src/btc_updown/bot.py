@@ -62,6 +62,8 @@ async def _check_trade_result(
     notifier: Notifier,
     trade_size_usd: float,
     price: float,
+    risk_manager,
+    market_id: str,
 ) -> None:
     """5分後に勝敗を判定してDBを更新し、Telegramに通知する"""
     await asyncio.sleep(330)  # 5分30秒後に確認（解決後の余裕）
@@ -80,6 +82,9 @@ async def _check_trade_result(
         pnl = gross - trade_size_usd - gross * 0.02
     else:
         pnl = -trade_size_usd
+
+    # リスクマネージャーのポジションを決済（エクスポージャーを解放）
+    risk_manager.settle_position(market_id, pnl)
 
     emoji = "✅ 勝ち" if won else "❌ 負け"
     await notifier.send(
@@ -358,6 +363,8 @@ async def run_btc_updown(
                     notifier=notifier,
                     trade_size_usd=actual_size,
                     price=price,
+                    risk_manager=risk_manager,
+                    market_id=market.condition_id,
                 ))
             else:
                 logger.error(f"❌ 発注失敗 ({total_ms:.0f}ms)")
