@@ -48,11 +48,15 @@ class Notifier:
             logger.debug(f"[通知無効] {message[:80]}")
             return
         try:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
                 None,
                 lambda: self._ap.notify(body=message, title=title)
             )
+            if not result:
+                logger.warning(f"通知送信失敗（Apprise returned False）: {title}")
+            else:
+                logger.debug(f"通知送信OK: {title}")
         except Exception as e:
             logger.error(f"通知送信失敗: {e}")
 
