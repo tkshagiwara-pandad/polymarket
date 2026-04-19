@@ -223,13 +223,14 @@ async def run_btc_updown(
                 last_traded_window = window_ts
                 continue
 
-            # ② 日次損失上限確認
-            daily = db.daily_summary()
-            if daily["pnl"] < -daily_loss_limit:
-                logger.warning(
-                    f"⛔ 日次損失上限超過 | 本日: {daily['pnl']:+.2f}$ < -${daily_loss_limit:.0f} → 本日取引停止"
-                )
-                last_traded_window = window_ts
+            # ② 日次損失上限確認（ペーパートレード中は無効化）
+            if not config.paper_trading:
+                daily = db.daily_summary()
+                if daily["pnl"] < -daily_loss_limit:
+                    logger.warning(
+                        f"⛔ 日次損失上限超過 | 本日: {daily['pnl']:+.2f}$ < -${daily_loss_limit:.0f} → 本日取引停止"
+                    )
+                    last_traded_window = window_ts
                 continue
 
             # ③ 連続負け確認（ペーパートレード中は無効化）
